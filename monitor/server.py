@@ -15,6 +15,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # 网卡名: 改成你自己的热点网卡 (ip link 查看, 手机热点通常是 wlan*/wlx* 开头)
+# 也可改成 IFACE = os.environ.get("HS_IFACE") or "wlx10a4bea81d3f" 由环境变量控制
 IFACE = "wlx10a4bea81d3f"  # 手机热点网卡(按实际网卡名修改)
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VNSTAT = os.path.join(BASE, "extracted", "usr", "bin", "vnstat")
