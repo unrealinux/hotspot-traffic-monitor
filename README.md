@@ -15,12 +15,16 @@
 ```
 vnstat-local/
 ├── vnstat.conf              # 配置(网卡名, 数据库路径)
+├── setup.sh                # 一键安装/启动/停止/查看状态
 ├── 查询热点流量.sh          # 便捷查询脚本
 ├── monitor/
 │   ├── server.py            # Web 面板(纯 stdlib, 8688 端口)
 │   ├── index.html           # 前端(单文件, 无依赖)
 │   ├── sampler.py           # 按进程采样器(读 ss -tinp, 必须沙箱外运行)
 │   └── watchdog.py          # 守护进程(缺哪个服务拉哪个)
+├── test/
+│   └── test_core.py         # 冒烟测试(纯函数 + 数据契约)
+├── .github/workflows/ci.yml # GitHub Actions CI
 ├── extracted/               # vnstat/vnstatd 二进制(免 root 安装)
 └── tools/
     └── 截图.js              # Playwright 截图工具
@@ -37,6 +41,18 @@ ip link | grep -i wlan    # 找到你的热点网卡名
 ```
 
 ### 2. 启动服务
+
+**最简单:用一键脚本**
+
+```bash
+cd vnstat-local
+./setup.sh                # 安装并启动 vnstatd + 采样器 + 面板 + watchdog
+./setup.sh --status       # 查看状态
+./setup.sh --stop         # 停止全部
+./setup.sh --iface=wlan0 # 监控指定网卡
+```
+
+**或手动逐步启动**
 
 ```bash
 cd vnstat-local
@@ -79,6 +95,17 @@ nohup python3 monitor/watchdog.py > monitor/watchdog.log 2>&1 &
 - 走本地代理(xray/v2rayN)的程序,socket 是"客户端→代理端口"的回环连接,按**客户端**归因
 - 代理核心自己的外发连接跳过,避免重复计数
 - 统计的是 TCP 载荷,不含协议头和重传,总和会略小于 vnstat
+
+## 测试与 CI
+
+```bash
+python3 test/test_core.py   # 冒烟测试(不依赖网络/宿主 /proc)
+```
+
+GitHub Actions 在每次 push 时自动跑:
+- 三个脚本的 Python 语法 + 两个 shell 脚本语法
+- 冒烟测试(导入模块、常量契约、`read_proc_stats` 行为、watchdog 检测函数)
+- 确认 `monitor/` 不引入第三方库(纯 stdlib)
 
 ## 系统重启后
 

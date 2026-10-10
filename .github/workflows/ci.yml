@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Syntax check all scripts
+        run: |
+          python -m py_compile monitor/server.py monitor/sampler.py monitor/watchdog.py
+          bash -n setup.sh
+          bash -n 查询热点流量.sh
+          echo "syntax ok"
+
+      - name: Smoke test (pure functions + data contracts)
+        run: python3 test/test_core.py
+
+      - name: Check Python deps (should be stdlib-only)
+        run: |
+          # 验证 monitor/ 下的脚本不 import 第三方库
+          ! grep -rE '^\s*import (playwright|requests|flask|numpy|pandas)' monitor/ && \
+            echo "stdlib-only confirmed"
