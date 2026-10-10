@@ -1,0 +1,42 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: vnstat
+Upstream-Contact: Teemu Toivola <tst@iki.fi>
+Source: https://humdi.net/vnstat/
+
+Files: *
+Copyright: Copyright (c) 2002-2025 Teemu Toivola <tst@iki.fi>
+License: GPL-2
+
+Files: examples/vnstat.cgi
+Copyright: copyright (c) 2008-2009 Teemu Toivola <tst@iki.fi>
+           copyright (c) 2000-2007 ETH Zurich
+           copyright (c) 2000-2007 David Schweikert <dws@ee.ethz.ch>
+License: GPL-any
+ Unspecified GPL license.
+
+Files: debian/*
+Copyright: Copyright (C) 2004 Teemu Toivola <tst@iki.fi>
+           Copyright (C) 2006-2010 Aurélien GÉRÔME <ag@roxor.cx>
+           Copyright (C) 2010 Iulian Udrea <iulian@ubuntu.com>
+           Copyright (C) 2013-2017 Felix Geyer <fgeyer@debian.org>
+           Copyright (C) 2017-2025 Christian Göttsche <cgzones@googlemail.com>
+           Copyright (C) 2019 Rob Savoury <savourytech@use.startmail.com>
+License: GPL-2
+
+License: GPL-2
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License version 2 as
+ published by the Free Software Foundation.
+ .
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software Foundation,
+ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
+ .
+ On Debian systems, the complete text of the GNU General Public
+ License version 2 can be found in the file
+ `/usr/share/common-licenses/GPL-2'.

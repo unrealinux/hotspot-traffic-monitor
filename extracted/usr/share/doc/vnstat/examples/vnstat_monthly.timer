@@ -1,0 +1,11 @@
+[Unit]
+Description=Monthly network report
+After=vnstat.service
+
+[Timer]
+OnCalendar=*-*-01
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=vnstat.service

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手机热点流量监控</title>
+<style>
+  :root {
+    --bg: #0f1420; --card: #171e2e; --border: #263049;
+    --text: #e6ebf5; --muted: #8b96ad;
+    --rx: #4da3ff; --tx: #ffb84d; --green: #3ddc84; --red: #ff6b6b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: "PingFang SC","Microsoft YaHei",system-ui,sans-serif; padding: 24px; }
+  h1 { font-size: 22px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .badge { font-size: 12px; font-weight: normal; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 6px; animation: blink 2s infinite; }
+  .dot.err { background: var(--red); animation: none; }
+  @keyframes blink { 50% { opacity: .35; } }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap: 14px; margin-top: 18px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+  .card .label { font-size: 13px; color: var(--muted); }
+  .card .value { font-size: 28px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .card .sub { font-size: 12px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .rx { color: var(--rx); } .tx { color: var(--tx); }
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; margin-top: 16px; }
+  .panel h2 { font-size: 15px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .panel h2 .hint { font-size: 12px; color: var(--muted); font-weight: normal; }
+  canvas { width: 100%; height: 220px; display: block; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit,minmax(380px,1fr)); gap: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 7px 8px; text-align: right; border-bottom: 1px solid var(--border); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 5px; }
+  .footer { color: var(--muted); font-size: 12px; margin-top: 16px; line-height: 1.8; }
+  code { background: #101728; border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+</style>
+</head>
+<body>
+  <h1>📱 手机热点流量监控
+    <span class="badge" id="ifaceBadge">wlx10a4bea81d3f</span>
+    <span class="badge"><span class="dot" id="statusDot"></span><span id="statusText">连接中…</span></span>
+  </h1>
+
+  <div class="grid">
+    <div class="card">
+      <div class="label">⬇ 实时下载速率</div>
+      <div class="value rx" id="rateRx">–</div>
+      <div class="sub" id="rateRxBit">–</div>
+    </div>
+    <div class="card">
+      <div class="label">⬆ 实时上传速率</div>
+      <div class="value tx" id="rateTx">–</div>
+      <div class="sub" id="rateTxBit">–</div>
+    </div>
+    <div class="card">
+      <div class="label">📅 今日累计</div>
+      <div class="value" id="dayTotal">–</div>
+      <div class="sub"><span class="rx" id="dayRx">–</span> / <span class="tx" id="dayTx">–</span></div>
+    </div>
+    <div class="card">
+      <div class="label">🗓 本月累计</div>
+      <div class="value" id="monthTotal">–</div>
+      <div class="sub"><span class="rx" id="monthRx">–</span> / <span class="tx" id="monthTx">–</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>⚡ 实时速率曲线
+      <span class="legend">
+        <span><i style="background:var(--rx)"></i>下载</span>
+        <span><i style="background:var(--tx)"></i>上传</span>
+        <span class="hint">每 2 秒采样 · 保留最近 6 分钟</span>
+      </span>
+    </h2>
+    <canvas id="liveChart" height="220"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>🔍 按进程实时流量
+      <span class="legend"><span class="hint" id="procStatus">采样器:检测中…</span></span>
+    </h2>
+    <table id="procTable">
+      <thead><tr><th>进程</th><th>连接数</th><th>实时 ↓</th><th>实时 ↑</th><th>累计 ↓</th><th>累计 ↑</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="footer">基于 <code>ss</code> 内核连接计数器 2 秒差分,按进程归因;仅统计经热点网卡的 TCP/UDP 载荷,不含协议头,略小于 vnstat 总量。采样器:<code>monitor/sampler.py</code></div>
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <h2>🕒 最近 4 小时(5 分钟粒度)
+        <span class="legend"><span><i style="background:var(--rx)"></i>下载</span><span><i style="background:var(--tx)"></i>上传</span></span>
+      </h2>
+      <canvas id="fiveChart" height="200"></canvas>
+    </div>
+    <div class="panel">
+      <h2>📊 今日分小时
+        <span class="legend"><span><i style="background:var(--rx)"></i>下载</span><span><i style="background:var(--tx)"></i>上传</span></span>
+      </h2>
+      <canvas id="hourChart" height="200"></canvas>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <h2>📅 每日流量 <span class="hint">最近 10 天</span></h2>
+      <table id="dayTable">
+        <thead><tr><th>日期</th><th>下载</th><th>上传</th><th>合计</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>🗓 每月流量</h2>
+      <table id="monthTable">
+        <thead><tr><th>月份</th><th>下载</th><th>上传</th><th>合计</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="footer">
+        数据由 <code>vnstatd</code> 每 5 分钟持久化,实时速率取自 <code>/proc/net/dev</code> 计数器差分。<br>
+        查询脚本:<code>vnstat-local/查询热点流量.sh</code>
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+const IFACE = "wlx10a4bea81d3f";
+const live = { t: [], rx: [], tx: [] };   // 实时速率滚动缓冲
+
+/* ---------- 工具函数 ---------- */
+function fmtBytes(n, digits = 2) {
+  if (n == null || isNaN(n)) return "–";
+  const u = ["B", "KiB", "MiB", "GiB", "TiB"];
+  let i = 0, v = Number(n);
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return v.toFixed(i === 0 ? 0 : digits) + " " + u[i];
+}
+function fmtRate(bps) {
+  if (bps == null || isNaN(bps)) return "–";
+  if (bps < 1) return "0 B/s";
+  return fmtBytes(bps, 1) + "/s";
+}
+function fmtBits(bps) {           // 转成 kbit/s / Mbit/s
+  const bit = bps * 8;
+  if (bit >= 1e6) return (bit / 1e6).toFixed(2) + " Mbit/s";
+  if (bit >= 1e3) return (bit / 1e3).toFixed(1) + " kbit/s";
+  return bit.toFixed(0) + " bit/s";
+}
+function niceCeil(v) {
+  if (v <= 0) return 1024;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  return Math.ceil(v / p) * p;
+}
+
+/* ---------- Canvas 柱状图(下载/上传分组) ---------- */
+function drawBars(canvas, items) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = parseInt(canvas.getAttribute("height"));
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const c = canvas.getContext("2d"); c.scale(dpr, dpr);
+  c.clearRect(0, 0, W, H);
+  const padL = 66, padB = 22, padT = 8, padR = 4;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  if (!items.length) {
+    c.fillStyle = "#8b96ad"; c.font = "13px sans-serif"; c.textAlign = "center";
+    c.fillText("暂无数据(vnstat 正在积累…)", W / 2, H / 2); return;
+  }
+  const max = niceCeil(Math.max(...items.map(d => Math.max(d.rx, d.tx)), 1));
+  // 网格与刻度
+  c.strokeStyle = "#263049"; c.fillStyle = "#8b96ad"; c.font = "11px sans-serif";
+  c.textAlign = "right"; c.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + plotH - plotH * i / 4;
+    c.beginPath(); c.moveTo(padL, y); c.lineTo(W - padR, y); c.stroke();
+    c.fillText(fmtBytes(max * i / 4, 1), padL - 6, y + 4);
+  }
+  // 柱子
+  const slot = plotW / items.length;
+  const bw = Math.max(2, Math.min(14, slot * 0.32));
+  items.forEach((d, i) => {
+    const x = padL + slot * i + slot / 2;
+    const hr = plotH * d.rx / max, ht = plotH * d.tx / max;
+    c.fillStyle = "#4da3ff"; c.fillRect(x - bw - 1, padT + plotH - hr, bw, hr);
+    c.fillStyle = "#ffb84d"; c.fillRect(x + 1, padT + plotH - ht, bw, ht);
+    if (i % Math.ceil(items.length / 8) === 0) {
+      c.fillStyle = "#8b96ad"; c.textAlign = "center";
+      c.fillText(d.label, x, H - 6);
+    }
+  });
+}
+
+/* ---------- Canvas 实时折线图 ---------- */
+function drawLive() {
+  const canvas = document.getElementById("liveChart");
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = 220;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const c = canvas.getContext("2d"); c.scale(dpr, dpr);
+  c.clearRect(0, 0, W, H);
+  const padL = 68, padB = 22, padT = 8, padR = 8;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  c.strokeStyle = "#263049"; c.fillStyle = "#8b96ad"; c.font = "11px sans-serif";
+  c.textAlign = "right";
+  const max = niceCeil(Math.max(...live.rx, ...live.tx, 1024));
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + plotH - plotH * i / 4;
+    c.beginPath(); c.moveTo(padL, y); c.lineTo(W - padR, y); c.stroke();
+    c.fillText(fmtBytes(max * i / 4, 1) + "/s", padL - 6, y + 4);
+  }
+  if (live.t.length < 2) {
+    c.textAlign = "center"; c.fillText("采样中…", W / 2, H / 2); return;
+  }
+  const t0 = live.t[0], t1 = live.t[live.t.length - 1];
+  const span = Math.max(t1 - t0, 1);
+  const line = (arr, color) => {
+    c.strokeStyle = color; c.lineWidth = 2; c.beginPath();
+    arr.forEach((v, i) => {
+      const x = padL + plotW * (live.t[i] - t0) / span;
+      const y = padT + plotH - plotH * Math.min(v, max) / max;
+      i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+    });
+    c.stroke();
+    // 面积
+    c.lineTo(padL + plotW, padT + plotH); c.lineTo(padL, padT + plotH); c.closePath();
+    c.fillStyle = color + "22"; c.fill();
+  };
+  line(live.rx, "#4da3ff");
+  line(live.tx, "#ffb84d");
+  // 时间轴标签
+  c.fillStyle = "#8b96ad"; c.textAlign = "center";
+  const fmt = s => new Date(s * 1000).toLocaleTimeString("zh-CN", { hour12: false });
+  for (let i = 0; i <= 4; i++) {
+    const x = padL + plotW * i / 4;
+    c.fillText(fmt(t0 + span * i / 4), x, H - 6);
+  }
+}
+
+/* ---------- 表格 ---------- */
+function fillTable(id, rows, labelFn) {
+  const tb = document.querySelector("#" + id + " tbody");
+  tb.innerHTML = rows.map(r =>
+    `<tr><td>${labelFn(r)}</td><td>${fmtBytes(r.rx)}</td><td>${fmtBytes(r.tx)}</td><td>${fmtBytes(r.rx + r.tx)}</td></tr>`
+  ).join("");
+}
+
+/* ---------- 主轮询 ---------- */
+async function tick() {
+  try {
+    const res = await fetch("/api/stats", { cache: "no-store" });
+    const s = await res.json();
+    document.getElementById("statusDot").classList.remove("err");
+    document.getElementById("statusText").textContent = s.time + " 实时";
+    document.getElementById("ifaceBadge").textContent = s.iface;
+
+    // 速率卡片
+    document.getElementById("rateRx").textContent = fmtRate(s.rate.rx);
+    document.getElementById("rateTx").textContent = fmtRate(s.rate.tx);
+    document.getElementById("rateRxBit").textContent = fmtBits(s.rate.rx);
+    document.getElementById("rateTxBit").textContent = fmtBits(s.rate.tx);
+
+    // 滚动缓冲(6 分钟 = 180 点)
+    live.t.push(Date.now() / 1000); live.rx.push(s.rate.rx); live.tx.push(s.rate.tx);
+    while (live.t.length > 180) { live.t.shift(); live.rx.shift(); live.tx.shift(); }
+    drawLive();
+
+    // 按进程流量
+    const ps = s.process || {};
+    const statusEl = document.getElementById("procStatus");
+    if (ps.alive) {
+      statusEl.textContent = `采样器运行中 · ${ps.socks} 条活跃连接 · 更新于 ${ps.time}`;
+      statusEl.style.color = "var(--green)";
+    } else {
+      statusEl.textContent = "⚠ 采样器未运行 — 在终端执行 python3 vnstat-local/monitor/sampler.py";
+      statusEl.style.color = "var(--red)";
+    }
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const pRows = (ps.procs || []).slice(0, 12);
+    document.querySelector("#procTable tbody").innerHTML = pRows.length
+      ? pRows.map(p => `<tr><td>${esc(p.name)}</td><td>${p.conns}</td>
+          <td class="rx">${fmtRate(p.rx_bps)}</td><td class="tx">${fmtRate(p.tx_bps)}</td>
+          <td>${fmtBytes(p.rx_total)}</td><td>${fmtBytes(p.tx_total)}</td></tr>`).join("")
+      : `<tr><td colspan="6" style="text-align:center;color:var(--muted)">暂无数据</td></tr>`;
+
+    // vnstat 历史
+    const vn = s.vnstat;
+    if (vn && vn.traffic) {
+      const tr = vn.traffic, upd = s.daemon_updated || {};
+      const dKey = upd.date ? `${upd.date.year}-${String(upd.date.month).padStart(2, "0")}-${String(upd.date.day).padStart(2, "0")}` : null;
+      const mKey = upd.date ? `${upd.date.year}-${String(upd.date.month).padStart(2, "0")}` : null;
+
+      const day = (tr.day || []).find(d => `${d.date.year}-${String(d.date.month).padStart(2, "0")}-${String(d.date.day).padStart(2, "0")}` === dKey) || { rx: 0, tx: 0 };
+      const mon = (tr.month || []).find(m => `${m.date.year}-${String(m.date.month).padStart(2, "0")}` === mKey) || { rx: 0, tx: 0 };
+
+      document.getElementById("dayTotal").textContent = fmtBytes(day.rx + day.tx);
+      document.getElementById("dayRx").textContent = "↓ " + fmtBytes(day.rx);
+      document.getElementById("dayTx").textContent = "↑ " + fmtBytes(day.tx);
+      document.getElementById("monthTotal").textContent = fmtBytes(mon.rx + mon.tx);
+      document.getElementById("monthRx").textContent = "↓ " + fmtBytes(mon.rx);
+      document.getElementById("monthTx").textContent = "↑ " + fmtBytes(mon.tx);
+
+      // 5 分钟:取最近 48 条(4 小时)
+      const fm = (tr.fiveminute || []).slice(-48).map(e => ({
+        label: String(e.time.hour).padStart(2, "0") + ":" + String(e.time.minute).padStart(2, "0"),
+        rx: e.rx, tx: e.tx,
+      }));
+      drawBars(document.getElementById("fiveChart"), fm);
+
+      // 小时
+      const hr = (tr.hour || []).map(e => ({
+        label: String(e.time ? e.time.hour : e.id).padStart(2, "0") + "时",
+        rx: e.rx, tx: e.tx,
+      }));
+      drawBars(document.getElementById("hourChart"), hr);
+
+      // 表格
+      fillTable("dayTable", (tr.day || []).slice(-10).reverse(), r =>
+        `${r.date.year}-${String(r.date.month).padStart(2, "0")}-${String(r.date.day).padStart(2, "0")}`);
+      fillTable("monthTable", (tr.month || []).slice(-12).reverse(), r =>
+        `${r.date.year}-${String(r.date.month).padStart(2, "0")}`);
+    }
+  } catch (e) {
+    document.getElementById("statusDot").classList.add("err");
+    document.getElementById("statusText").textContent = "连接失败,重试中…";
+  }
+}
+tick();
+setInterval(tick, 2000);
+window.addEventListener("resize", drawLive);
+</script>
+</body>
+</html>

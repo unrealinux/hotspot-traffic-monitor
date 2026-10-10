@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily network report
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c "/usr/bin/vnstat -s | mail -s 'vnstat daily report' root"
+User=vnstat
+KillMode=process

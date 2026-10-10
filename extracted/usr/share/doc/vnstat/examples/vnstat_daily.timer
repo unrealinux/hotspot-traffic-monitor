@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily network report
+After=vnstat.service
+
+[Timer]
+OnCalendar=*-*-* 23:59:40
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=vnstat.service
