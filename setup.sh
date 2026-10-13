@@ -62,8 +62,18 @@ status_all() {
   echo "($up/4 个进程在跑)"
 }
 
+# 若指定了新网卡, 把 vnstat.conf 的 DatabaseDir 改成本机绝对路径
+# (vnstat 不展开 $PWD, 必须绝对路径; 换机器时由本脚本自动修正)
+fix_database_dir() {
+  if [ -f "$ROOT/vnstat.conf" ]; then
+    sed -i "s|^DatabaseDir .*|DatabaseDir \"$VDIR\"|" "$ROOT/vnstat.conf"
+  fi
+}
+
 start_all() {
   local no_watchdog=0
+  # 始终修正 DatabaseDir 为本机绝对路径, 避免跨机器时相对路径失效
+  fix_database_dir
   if [ "${IFACE_OVERRIDE:-}" != "" ]; then
     echo ">>> 更新 vnstat.conf 网卡名为 $IFACE_OVERRIDE"
     sed -i "s|^Interface \"[^\"]*\"|Interface \"$IFACE_OVERRIDE\"|" "$ROOT/vnstat.conf"

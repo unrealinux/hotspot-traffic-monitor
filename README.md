@@ -40,6 +40,9 @@ vnstat-local/
 ip link | grep -i wlan    # 找到你的热点网卡名
 ```
 
+> ⚠️ `DatabaseDir` 必须是**绝对路径**(vnstat 不展开 `$PWD` 变量,写成相对路径会让 vnstatd 起不来、面板今日/本月累计空白)。
+> 换机器 clone 后不用手动改——直接跑 `./setup.sh` 会自动把 `DatabaseDir` 修正为当前机器的绝对路径。
+
 ### 2. 启动服务
 
 **最简单:用一键脚本**
