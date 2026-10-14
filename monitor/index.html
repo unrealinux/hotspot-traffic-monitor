@@ -289,12 +289,11 @@ async function tick() {
     // vnstat 历史
     const vn = s.vnstat;
     if (vn && vn.traffic) {
-      const tr = vn.traffic, upd = s.daemon_updated || {};
-      const dKey = upd.date ? `${upd.date.year}-${String(upd.date.month).padStart(2, "0")}-${String(upd.date.day).padStart(2, "0")}` : null;
-      const mKey = upd.date ? `${upd.date.year}-${String(upd.date.month).padStart(2, "0")}` : null;
+      const tr = vn.traffic;
 
-      const day = (tr.day || []).find(d => `${d.date.year}-${String(d.date.month).padStart(2, "0")}-${String(d.date.day).padStart(2, "0")}` === dKey) || { rx: 0, tx: 0 };
-      const mon = (tr.month || []).find(m => `${m.date.year}-${String(m.date.month).padStart(2, "0")}` === mKey) || { rx: 0, tx: 0 };
+      // 今日/本月累计:直接取列表末项(升序,末项=当前周期),避免日期字符串补零不一致
+      const day = (tr.day || []).slice(-1)[0] || { rx: 0, tx: 0 };
+      const mon = (tr.month || []).slice(-1)[0] || { rx: 0, tx: 0 };
 
       document.getElementById("dayTotal").textContent = fmtBytes(day.rx + day.tx);
       document.getElementById("dayRx").textContent = "↓ " + fmtBytes(day.rx);
